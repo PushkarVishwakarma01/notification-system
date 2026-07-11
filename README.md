@@ -1,83 +1,379 @@
-# Notification Frontend — Nova Talent CRM
+# Nova Talent CRM – Notification System
 
-Frontend-only scope for the notification system challenge: a bell icon, unread badge,
-dropdown panel, mark-read / mark-all-read, and 20s polling — wired into a small dashboard
-so it sits in context instead of floating on a blank page.
+A full-stack, multi-tenant notification system built as part of the AI-native CRM hiring challenge.
 
-## Stack
-- Next.js 14 (App Router) + TypeScript
-- Tailwind CSS
-- lucide-react for icons
+The project demonstrates an end-to-end notification pipeline where business events automatically generate notifications for the correct tenant and user.
 
-## Setup
+---
+
+# Features
+
+## Notification Module
+
+- Create notifications
+- List notifications (tenant-aware)
+- Unread notification badge
+- Mark a single notification as read
+- Mark all notifications as read
+- Unread count API
+- Pagination
+- Tenant isolation
+
+---
+
+## Outreach Module
+
+Create outreach messages and simulate creator replies.
+
+When a creator replies:
+
+Outreach → NotificationService → Notification Created
+
+Notifications are automatically assigned to the recruiter responsible for that outreach.
+
+---
+
+## Team Module
+
+Invite new team members.
+
+When a member joins:
+
+Team → NotificationService → Tenant-wide Notification
+
+Notifications are visible to every user inside the organization.
+
+---
+
+# Tech Stack
+
+## Backend
+
+- Java 21
+- Spring Boot 3
+- Spring Data JPA
+- PostgreSQL
+- Maven
+- Lombok
+
+---
+
+## Frontend
+
+- Next.js 15 (App Router)
+- React 19
+- JavaScript
+- Tailwind CSS v4
+- Lucide React
+- Axios
+
+---
+
+# Architecture
+
+```
+                        React Frontend
+
+                               │
+
+                     REST Controllers
+
+        ┌──────────────┬──────────────┐
+        │              │              │
+
+ Notification     Outreach      Team
+
+        │              │              │
+        │              └──────┐ ┌─────┘
+        │                     │ │
+        ▼                     ▼ ▼
+
+             NotificationService
+
+                     │
+
+          NotificationRepository
+
+                     │
+
+                 PostgreSQL
+```
+
+Business modules never create notifications directly.
+
+They delegate all notification creation to the NotificationService.
+
+This keeps the notification logic reusable and decoupled.
+
+---
+
+# Multi-Tenant Design
+
+The system supports multiple organizations (tenants).
+
+For the assignment, authentication is simplified using request headers.
+
+```
+X-Tenant-Id
+X-User-Id
+```
+
+Every API request is automatically scoped to the caller's tenant.
+
+Tenant isolation guarantees:
+
+- Tenant A cannot view Tenant B notifications.
+- Tenant A cannot mark Tenant B notifications as read.
+- Tenant A cannot access Tenant B outreach or team data.
+
+---
+
+# Backend APIs
+
+## Notification
+
+```
+POST   /api/notifications
+GET    /api/notifications
+GET    /api/notifications/unread-count
+PATCH  /api/notifications/{id}/read
+PATCH  /api/notifications/read-all
+```
+
+---
+
+## Outreach
+
+```
+POST   /api/outreach
+GET    /api/outreach
+GET    /api/outreach/{id}
+POST   /api/outreach/{id}/reply
+```
+
+---
+
+## Team
+
+```
+POST   /api/team
+GET    /api/team
+GET    /api/team/{id}
+```
+
+---
+
+# Notification Flow
+
+## Outreach Reply
+
+```
+Create Outreach
+
+        │
+
+Waiting For Reply
+
+        │
+
+Simulate Reply
+
+        │
+
+NotificationService.createNotification()
+
+        │
+
+Notification Saved
+
+        │
+
+Notification Bell Updates
+```
+
+---
+
+## Team Invitation
+
+```
+Invite Member
+
+        │
+
+Save Team Member
+
+        │
+
+NotificationService.createNotification()
+
+        │
+
+Tenant-wide Notification
+
+        │
+
+Notification Bell Updates
+```
+
+---
+
+# Frontend
+
+The frontend is intentionally minimal and focuses on demonstrating the notification pipeline rather than building a complete CRM.
+
+## Pages
+
+```
+Dashboard
+
+Outreach
+
+Team
+```
+
+## Notification Bell
+
+- Unread badge
+- Polls backend every 20 seconds
+- Dropdown activity panel
+- Mark one notification as read
+- Mark all notifications as read
+
+---
+
+# Project Structure
+
+```
+frontend/
+
+app/
+components/
+hooks/
+lib/
+
+backend/
+
+notification/
+outreach/
+team/
+exception/
+```
+
+---
+
+# Running the Project
+
+## Backend
 
 ```bash
+cd backend
+
+./mvnw spring-boot:run
+```
+
+Backend runs on
+
+```
+http://localhost:8080
+```
+
+---
+
+## Frontend
+
+```bash
+cd frontend
+
 npm install
-cp .env.local.example .env.local
+
 npm run dev
 ```
 
-Open http://localhost:3000. `/simulate` has two buttons that fire mock events so you can
-watch the bell update without the backend running.
-
-## Running against mock data vs. the real backend
-
-Controlled entirely by `.env.local`:
-
-```bash
-NEXT_PUBLIC_USE_MOCK_DATA=true   # bundled seed data, no backend needed
-NEXT_PUBLIC_USE_MOCK_DATA=false  # hits NEXT_PUBLIC_API_URL for real
-```
-
-When the backend team's API is ready, set `NEXT_PUBLIC_USE_MOCK_DATA=false` and point
-`NEXT_PUBLIC_API_URL` at their server. No component code changes — everything goes through
-`lib/api.ts`.
-
-`NEXT_PUBLIC_TENANT_ID` / `NEXT_PUBLIC_USER_ID` stand in for a real session until auth exists;
-they're sent as `X-Tenant-Id` / `X-User-Id` headers on every request, per the API contract.
-
-## Structure
+Frontend runs on
 
 ```
-app/
-  layout.tsx          fonts + global shell
-  page.tsx             dashboard page (navbar + placeholder pipeline table)
-  simulate/page.tsx     fires demo events through the same createNotification() call
-  globals.css
-components/
-  Navbar.tsx
-  NotificationBell.tsx    badge + polling + open/close state
-  NotificationPanel.tsx   dropdown: list, empty state, mark-all-read
-  NotificationItem.tsx    single row: title, body, relative time, mark-read
-lib/
-  api.ts        all fetch calls + mock-mode switch, single source of truth
-  mockData.ts   exact seed data from the challenge spec
-  types.ts
-  time.ts       relative time formatting ("2h ago")
-  typeMeta.ts   icon/label per notification type
+http://localhost:3000
 ```
 
-## API contract this expects from the backend
+---
+
+# Environment Variables
+
+Frontend
 
 ```
-GET   /notifications              -> Notification[]   (unread first, then newest)
-GET   /notifications/unread-count -> { count: number }
-PATCH /notifications/:id/read     -> 200 / 404 if not caller's tenant
-PATCH /notifications/read-all     -> 200
-POST  /notifications              -> Notification      (used by trigger demo)
+NEXT_PUBLIC_API_URL=http://localhost:8080/api
+
+NEXT_PUBLIC_TENANT_ID=t1
+
+NEXT_PUBLIC_USER_ID=u1
 ```
 
-Every request sends `X-Tenant-Id` and `X-User-Id` headers.
+Backend
 
-## Design notes
+Configure PostgreSQL inside
 
-Palette is white / near-black / teal on purpose — no dark-mode-with-neon-accent default.
-Unread rows get a teal left rule and a faint teal wash background; read rows go flat. Type
-tags and timestamps are set in mono to read like a system log ("activity ledger"), which
-matches the brief's framing of "what happened while I wasn't looking."
+```
+application.properties
+```
 
-## What I'd do differently with more time
-- Swap polling for SSE/WebSocket push so the badge updates instantly instead of on a timer.
-- Add pagination / "load more" once a tenant has more than a screenful of notifications.
-- Optimistic-update rollback currently just refetches the list on failure; a toast explaining
-  *why* it failed would be more honest to the user.
+```
+spring.datasource.url=
+
+spring.datasource.username=
+
+spring.datasource.password=
+```
+
+---
+
+# Testing
+
+The backend has been tested using Postman.
+
+Verified scenarios:
+
+- Create notification
+- List notifications
+- Unread count
+- Mark one notification as read
+- Mark all notifications as read
+- Create outreach
+- Simulate creator reply
+- Invite team member
+- Tenant isolation
+- User-specific notifications
+- Tenant-wide notifications
+
+---
+
+# Future Improvements
+
+With more development time, the following enhancements would be implemented:
+
+- JWT authentication instead of request headers
+- WebSocket / Server-Sent Events for real-time notifications
+- Redis caching for unread counts
+- Event-driven architecture using Kafka or RabbitMQ
+- Notification preferences per user
+- Search and filtering
+- Infinite scrolling / pagination improvements
+- Optimistic UI with rollback and toast notifications
+- Unit and integration testing using JUnit and Testcontainers
+- Docker & Docker Compose deployment
+- CI/CD pipeline using GitHub Actions
+
+---
+
+# Assignment Objectives Covered
+
+- Multi-tenant architecture
+- End-to-end notification pipeline
+- Automatic notification triggers
+- RESTful API design
+- Frontend notification bell
+- Backend integration
+- Clean layered architecture
+- Separation of concerns
+- Tenant isolation
+- Modern React + Spring Boot implementation
