@@ -1,0 +1,83 @@
+# Notification Frontend — Nova Talent CRM
+
+Frontend-only scope for the notification system challenge: a bell icon, unread badge,
+dropdown panel, mark-read / mark-all-read, and 20s polling — wired into a small dashboard
+so it sits in context instead of floating on a blank page.
+
+## Stack
+- Next.js 14 (App Router) + TypeScript
+- Tailwind CSS
+- lucide-react for icons
+
+## Setup
+
+```bash
+npm install
+cp .env.local.example .env.local
+npm run dev
+```
+
+Open http://localhost:3000. `/simulate` has two buttons that fire mock events so you can
+watch the bell update without the backend running.
+
+## Running against mock data vs. the real backend
+
+Controlled entirely by `.env.local`:
+
+```bash
+NEXT_PUBLIC_USE_MOCK_DATA=true   # bundled seed data, no backend needed
+NEXT_PUBLIC_USE_MOCK_DATA=false  # hits NEXT_PUBLIC_API_URL for real
+```
+
+When the backend team's API is ready, set `NEXT_PUBLIC_USE_MOCK_DATA=false` and point
+`NEXT_PUBLIC_API_URL` at their server. No component code changes — everything goes through
+`lib/api.ts`.
+
+`NEXT_PUBLIC_TENANT_ID` / `NEXT_PUBLIC_USER_ID` stand in for a real session until auth exists;
+they're sent as `X-Tenant-Id` / `X-User-Id` headers on every request, per the API contract.
+
+## Structure
+
+```
+app/
+  layout.tsx          fonts + global shell
+  page.tsx             dashboard page (navbar + placeholder pipeline table)
+  simulate/page.tsx     fires demo events through the same createNotification() call
+  globals.css
+components/
+  Navbar.tsx
+  NotificationBell.tsx    badge + polling + open/close state
+  NotificationPanel.tsx   dropdown: list, empty state, mark-all-read
+  NotificationItem.tsx    single row: title, body, relative time, mark-read
+lib/
+  api.ts        all fetch calls + mock-mode switch, single source of truth
+  mockData.ts   exact seed data from the challenge spec
+  types.ts
+  time.ts       relative time formatting ("2h ago")
+  typeMeta.ts   icon/label per notification type
+```
+
+## API contract this expects from the backend
+
+```
+GET   /notifications              -> Notification[]   (unread first, then newest)
+GET   /notifications/unread-count -> { count: number }
+PATCH /notifications/:id/read     -> 200 / 404 if not caller's tenant
+PATCH /notifications/read-all     -> 200
+POST  /notifications              -> Notification      (used by trigger demo)
+```
+
+Every request sends `X-Tenant-Id` and `X-User-Id` headers.
+
+## Design notes
+
+Palette is white / near-black / teal on purpose — no dark-mode-with-neon-accent default.
+Unread rows get a teal left rule and a faint teal wash background; read rows go flat. Type
+tags and timestamps are set in mono to read like a system log ("activity ledger"), which
+matches the brief's framing of "what happened while I wasn't looking."
+
+## What I'd do differently with more time
+- Swap polling for SSE/WebSocket push so the badge updates instantly instead of on a timer.
+- Add pagination / "load more" once a tenant has more than a screenful of notifications.
+- Optimistic-update rollback currently just refetches the list on failure; a toast explaining
+  *why* it failed would be more honest to the user.
